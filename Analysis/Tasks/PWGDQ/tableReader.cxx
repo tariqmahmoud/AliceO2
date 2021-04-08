@@ -615,6 +615,93 @@ struct DileptonHadronAnalysis {
     }
   }
 };
+//_____________ added by tariq (exotics)
+struct Exotics {
+  //
+  // This task combines dilepton candidates with one or two hadrons jpsi-> pi or (pipi)
+  // It requires the TableReader task to be in the workflow and produce the dilepton table
+  //
+  //  The barrel and muon track filtering tasks can produce multiple parallel decisions, which are used to produce
+  //   dileptons which inherit the logical intersection of the track level decisions (see the TableReader task). This can be used
+  //   also in the dilepton-hadron correlation analysis. However, in this model of the task, we use all the dileptons produced in the
+  //     TableReader task to combine them with the hadrons selected by the barrel track selection.
+  OutputObj<THashList> fOutputList{"output"};
+  HistogramManager* fHistMan;
+
+  // use two values array to avoid mixing up the quantities
+  float* fValuesDilepton;
+  float* fValuesPosPion;
+  float* fValuesNegPion;
+
+  Filter eventFilter = aod::reducedevent::isEventSelected == 1;
+  Filter dileptonFilter = aod::reducedpair::mass > 2.92f && aod::reducedpair::mass<3.16f && aod::reducedpair::pt> 0.0f && aod::reducedpair::sign == 0;
+  // NOTE: the barrel track filter is shared between the filters for dilepton electron candidates (first n-bits)
+  //       and the associated hadrons (n+1 bit) --> see the barrel track selection task
+  //      The current condition should be replaced when bitwise operators will become available in Filter expresions
+  // NOTE: the name of this configurable has to be the same as the one used in the barrel track selection task
+  Configurable<std::string> fConfigElectronCuts{"cfgElectronCuts", "jpsiPID1", "Comma separated list of barrel track cuts"};
+  int fNHadronCutBit;
+
+  constexpr static uint32_t fgDileptonFillMap = VarManager::ObjTypes::ReducedTrack | VarManager::ObjTypes::Pair;
+
+  void init(o2::framework::InitContext&)
+  {
+    fValuesDilepton = new float[VarManager::kNVars];
+    fValuesPosPion = new float[VarManager::kNVars];
+    fValuesNeg = new float[VarManager::kNVars];
+
+    VarManager::SetDefaultVarNames();
+    fHistMan = new HistogramManager("analysisHistos", "aa", VarManager::kNVars);
+    fHistMan->SetUseDefaultVariableNames(kTRUE);
+    fHistMan->SetDefaultVarNames(VarManager::fgVariableNames, VarManager::fgVariableUnits);
+
+    DefineHistograms(fHistMan, "DileptonsSelected;DileptonHadronInvMass;DileptonHadronCorrelation"); // define all histograms
+    VarManager::SetUseVars(fHistMan->GetUsedVars());
+    fOutputList.setObject(fHistMan->GetMainHistogramList());
+
+    TString configCutNamesStr = fConfigElectronCuts.value;
+    if (!configCutNamesStr.IsNull()) {
+      std::unique_ptr<TObjArray> objArray(configCutNamesStr.Tokenize(","));
+      fNHadronCutBit = objArray->GetEntries();
+    } else {
+      fNHadronCutBit = 0;
+    }
+  }
+
+  void process(soa::Filtered<MyEventsVtxCovSelected>::iterator const& event, MyBarrelTracksSelected const& hadrons, soa::Filtered<aod::Dileptons> const& dileptons)
+  {
+    VarManager::ResetValues(0, VarManager::kNVars, fValuesPosPion);
+    VarManager::ResetValues(0, VarManager::kNVars, fValuesNegPion);
+    VarManager::ResetValues(0, VarManager::kNVars, fValuesDilepton);
+    // fill event information which might be needed in histograms that combine track/pair and event properties
+    VarManager::FillEvent<gkEventFillMap>(event, fValuesPosPion);
+    VarManager::FillEvent<gkEventFillMap>(event, fValuesNegPion);
+    VarManager::FillEvent<gkEventFillMap>(event, fValuesDilepton); // TODO: check if needed (just for dilepton QA which might be depending on event wise variables)
+
+    // loop once over dileptons for QA purposes
+    for (auto dilepton : dileptons) {
+      VarManager::FillTrack<fgDileptonFillMap>(dilepton, fValuesDilepton);
+      fHistMan->FillHistClass("DileptonsSelected", fValuesDilepton);
+    }
+
+    // loop over hadrons
+    for (auto& pospi : hadrons) {
+      if (!(pospi.isBarrelSelected() & (uint8_t(1) << fNHadronCutBit))) {continue;}
+      for (auto& negpi : hadrons) {
+	if (!(negpi.isBarrelSelected() & (uint8_t(1) << fNHadronCutBit))) {continue;}
+	for (auto dilepton : dileptons) {
+	  // TODO: At the moment there is no check on whether this hadron is one of the dilepton daughters!
+	  VarManager::FillExotics(dilepton, pospi, negpi,);//FINDOUT: need fvalues for each list? Where is it filled?
+	  //VarManager::FillDileptonHadron(dilepton, hadron, fValuesHadron);
+	  fHistMan->FillHistClass("DileptonHadronInvMass", fValuesHadron);
+	  fHistMan->FillHistClass("DileptonHadronCorrelation", fValuesHadron);
+	}
+      }//Pos pi
+    }//neg pi
+    
+  }
+};
+//end exotics (tariq)
 
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
 {

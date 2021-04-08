@@ -48,38 +48,38 @@ struct TaskX {
   void process(aod::Collision const&, aod::BigTracks const& tracks, soa::Filtered<soa::Join<aod::HfCandProng2, aod::HFSelJpsiToEECandidate>> const& candidates)
   {
     for (auto& candidate : candidates) {
-      if (!(candidate.hfflag() & 1 << JpsiToEE)) {
-        continue;
-      }
-      if (cutYCandMax >= 0. && std::abs(YJpsi(candidate)) > cutYCandMax) {
-        continue;
-      }
+      if (!(candidate.hfflag() & 1 << JpsiToEE)) {continue;}
+      if (cutYCandMax >= 0. && std::abs(YJpsi(candidate)) > cutYCandMax) {continue;}
       registry.fill(HIST("hMassJpsi"), InvMassJpsiToEE(candidate));
-
+      //////////////tariq
+      // cuts on jpsi cand
+      //if (InvMassJpsiToEE(candidate) < cutMassCandMin || InvMassJpsiToEE(candidate) > cutMassCandMax ){continue;}
+      // define type flag: example 0, 1, 2 for pp, pm, mm
+      //--> if(TypeJpsi==1 && SEMixing){continue;}//etc.
+      ///////// end tariq
       int index0jpsi = candidate.index0Id();
       int index1jpsi = candidate.index1Id();
       for (auto& track1 : tracks) {
         int signTrack1 = track1.sign();
         int indexTrack1 = track1.globalIndex();
         if (signTrack1 > 0) {
-          if (indexTrack1 == index0jpsi) {
-            continue;
-          }
-        } else if (indexTrack1 == index1jpsi) {
-          continue;
-        }
+          if (indexTrack1 == index0jpsi) {continue; }
+        } else if (indexTrack1 == index1jpsi) {continue;}
+	//What if signTrack1 < 0
+	// if jpsi daughter then always continue ...
+	// first must be pos --> what about SE and mixed event analysis? (is there any o2 common code (template) for mixing): see Analysis/Core/src/CorrelationContainer.cxx
+	// when taking SE or ME take options: pi+pi+ (pi-pi-) with
+	// option 1: e-e+ only
+	// option 2: e-e- and e+e+ and e-e+
+	//
         for (auto track2 = track1 + 1; track2 != tracks.end(); ++track2) {
-          if (signTrack1 == track2.sign()) {
-            continue;
-          }
+          if (signTrack1 == track2.sign()) {continue;}
           int indexTrack2 = track2.globalIndex();
           if (signTrack1 > 0) {
-            if (indexTrack2 == index1jpsi) {
-              continue;
-            }
-          } else if (indexTrack2 == index0jpsi) {
-            continue;
-          }
+            if (indexTrack2 == index1jpsi) {continue;}
+          } else if (indexTrack2 == index0jpsi) {continue;}
+
+	  
           registry.fill(HIST("hPtCand"), candidate.pt() + track1.pt() + track2.pt());
         } // track2 loop (pion)
       }   // track1 loop (pion)

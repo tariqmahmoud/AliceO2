@@ -234,7 +234,10 @@ class VarManager : public TObject
   static void FillPair(T const& t1, T const& t2, float* values = nullptr, PairCandidateType pairType = kJpsiToEE);
   template <typename T1, typename T2>
   static void FillDileptonHadron(T1 const& dilepton, T2 const& hadron, float* values = nullptr, float hadronMass = 0.0f);
+  //tariq 
+  static void FillExotics(T1 const& dilepton, T2 const& hadron1, T2 const& hadron2, float* values = nullptr);//, float hadronMass = 0.0f);
 
+  
  public:
   VarManager();
   ~VarManager() override;
